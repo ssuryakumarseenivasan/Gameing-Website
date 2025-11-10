@@ -1,0 +1,5 @@
+{
+  "name": "Celestial Arcade",
+  "description": "A web-based game arcade where you can play classic games. Features include a Gemini-powered AI opponent and dynamically generated game instructions.",
+  "requestFramePermissions": []
+}
