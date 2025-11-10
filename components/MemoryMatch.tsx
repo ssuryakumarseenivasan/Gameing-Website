@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MemoryCard, Difficulty } from '../types';
-import { getGameInstructions, getAIMemoryMatchMove } from '../services/geminiService';
+import { getGameInstructions } from '../services/geminiService';
 import Modal from './Modal';
 import DifficultySelector from './DifficultySelector';
 
@@ -29,29 +29,95 @@ const MemoryMatch: React.FC<MemoryMatchProps> = ({ onBack }) => {
   const [instructions, setInstructions] = useState('');
   const [isLoadingInstructions, setIsLoadingInstructions] = useState(false);
 
+  // AI Memory
+  const aiMemory = useRef<Map<string, number[]>>(new Map());
+
+  useEffect(() => {
+    // Update AI memory whenever cards are flipped
+    flippedIndices.forEach(index => {
+        const card = cards[index];
+        if (!aiMemory.current.has(card.value)) {
+            aiMemory.current.set(card.value, []);
+        }
+        if (!aiMemory.current.get(card.value)!.includes(index)) {
+            aiMemory.current.get(card.value)!.push(index);
+        }
+    });
+  }, [flippedIndices, cards]);
+
+  const makeLocalAIMove = () => {
+    setAiMoves(prev => prev + 1);
+    const availableIndices = cards.map((c, i) => i).filter(i => !cards[i].isMatched);
+    
+    // Hard / Medium: Look for a known match
+    if (difficulty === 'Hard' || difficulty === 'Medium') {
+        for (const [value, indices] of aiMemory.current.entries()) {
+            if (indices.length === 2) {
+                const card1 = cards[indices[0]];
+                const card2 = cards[indices[1]];
+                if (!card1.isMatched && !card2.isMatched) {
+                    flipCardsForAI(indices[0], indices[1]);
+                    return;
+                }
+            }
+        }
+    }
+
+    // Easy / Medium Fallback: Flip one known and one random, or two random
+    let firstIndex = -1;
+    let secondIndex = -1;
+
+    if (difficulty !== 'Hard' && Math.random() > 0.5) { // Imperfect memory for Medium/Easy
+        // Guess randomly
+    } else {
+         // Try to use memory
+        const knownUnmatched = Array.from(aiMemory.current.values()).find(indices => indices.length === 1 && !cards[indices[0]].isMatched);
+        if (knownUnmatched) {
+            firstIndex = knownUnmatched[0];
+        }
+    }
+
+    // Pick random cards
+    const getShuffledAvailable = () => availableIndices.sort(() => Math.random() - 0.5);
+
+    if (firstIndex === -1) {
+        [firstIndex, secondIndex] = getShuffledAvailable().slice(0, 2);
+    } else {
+        do {
+            secondIndex = getShuffledAvailable()[0];
+        } while (firstIndex === secondIndex);
+    }
+    
+    flipCardsForAI(firstIndex, secondIndex);
+  };
+
+  const flipCardsForAI = (first: number, second: number) => {
+    setTimeout(() => {
+        setCards(prev => prev.map((card, index) => (index === first || index === second) ? { ...card, isFlipped: true } : card));
+        setFlippedIndices([first, second]);
+    }, 500);
+  }
+
   useEffect(() => {
     if (flippedIndices.length === 2) {
       const [firstIndex, secondIndex] = flippedIndices;
       if (cards[firstIndex].value === cards[secondIndex].value) {
-        // Match found
         setTimeout(() => {
           setCards(prev => prev.map(card => 
             card.value === cards[firstIndex].value ? { ...card, isMatched: true, isFlipped: true } : card
           ));
           setFlippedIndices([]);
-          if (!isPlayerTurn) {
-             // AI gets another turn on match
-            setTimeout(makeAIMove, 1000);
+          if (!isPlayerTurn && !getIsGameOver()) {
+            setTimeout(makeLocalAIMove, 1000);
           }
         }, 800);
       } else {
-        // No match
         setTimeout(() => {
           setCards(prev => prev.map((card, index) =>
             flippedIndices.includes(index) ? { ...card, isFlipped: false } : card
           ));
           setFlippedIndices([]);
-          setIsPlayerTurn(prev => !prev); // Switch turns
+          setIsPlayerTurn(prev => !prev);
         }, 1200);
       }
     }
@@ -59,25 +125,19 @@ const MemoryMatch: React.FC<MemoryMatchProps> = ({ onBack }) => {
   
   useEffect(() => {
     if (!isPlayerTurn && !getIsGameOver() && difficulty) {
-       makeAIMove();
+       setTimeout(makeLocalAIMove, 1000);
     }
   }, [isPlayerTurn, difficulty]);
 
-  const makeAIMove = async () => {
-    setAiMoves(prev => prev + 1);
-    const [first, second] = await getAIMemoryMatchMove(cards, difficulty!);
-    setTimeout(() => {
-      setCards(prev => prev.map((card, index) => (index === first || index === second) ? { ...card, isFlipped: true } : card));
-      setFlippedIndices([first, second]);
-    }, 500);
-  };
 
   const handleCardClick = (index: number) => {
     if (!isPlayerTurn || flippedIndices.length === 2 || cards[index].isFlipped) {
       return;
     }
     
-    setPlayerMoves(prev => flippedIndices.length === 0 ? prev + 1 : prev);
+    if (flippedIndices.length === 0) {
+        setPlayerMoves(prev => prev + 1);
+    }
     
     const newFlippedIndices = [...flippedIndices, index];
     setCards(prev => prev.map((card, i) => i === index ? { ...card, isFlipped: true } : card));
@@ -90,6 +150,7 @@ const MemoryMatch: React.FC<MemoryMatchProps> = ({ onBack }) => {
     setIsPlayerTurn(true);
     setPlayerMoves(0);
     setAiMoves(0);
+    aiMemory.current.clear();
   };
   
   const handleGetInstructions = async () => {
@@ -105,10 +166,10 @@ const MemoryMatch: React.FC<MemoryMatchProps> = ({ onBack }) => {
   const getStatusMessage = () => {
     if (getIsGameOver()) {
         if (playerMoves < aiMoves) return 'You Win!';
-        if (aiMoves < playerMoves) return 'Gemini Wins!';
+        if (aiMoves < playerMoves) return 'AI Wins!';
         return "It's a Draw!";
     }
-    return isPlayerTurn ? "Your turn" : "Gemini's turn";
+    return isPlayerTurn ? "Your turn" : "AI's turn";
   };
   
   if (!difficulty) {
@@ -121,18 +182,16 @@ const MemoryMatch: React.FC<MemoryMatchProps> = ({ onBack }) => {
       <div className="flex justify-between w-full max-w-sm mb-4 text-lg">
           <span>You: {playerMoves}</span>
           <span className="font-semibold">{getStatusMessage()}</span>
-          <span>Gemini: {aiMoves}</span>
+          <span>AI: {aiMoves}</span>
       </div>
       
       <div className="grid grid-cols-4 gap-4 p-4 bg-gray-800 rounded-lg">
         {cards.map((card, index) => (
           <div key={card.id} className="w-16 h-20 md:w-20 md:h-24 perspective" onClick={() => handleCardClick(index)}>
             <div className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${card.isFlipped ? 'rotate-y-180' : ''}`}>
-              {/* Card Back */}
               <div className="absolute w-full h-full bg-purple-600 rounded-lg flex items-center justify-center backface-hidden">
                 <span className="text-2xl">?</span>
               </div>
-              {/* Card Front */}
               <div className="absolute w-full h-full bg-gray-700 rounded-lg flex items-center justify-center rotate-y-180 backface-hidden">
                 <span className="text-4xl">{card.value}</span>
               </div>

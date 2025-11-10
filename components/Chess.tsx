@@ -111,8 +111,7 @@ const ChessComponent: React.FC<ChessProps> = ({ onBack }) => {
       <p className="text-xl h-8 mb-4">{getStatusMessage()}</p>
       <div className="w-full max-w-sm md:max-w-md lg:max-w-lg shadow-lg">
         <Chessboard
-            // FIX: Property 'position' does not exist on type 'ChessboardProps'.
-            // This error suggests a version mismatch for react-chessboard. Older versions used the `fen` prop.
+            // FIX: Changed prop from `fen` to `position` as required by the react-chessboard component API.
             position={fen} 
             onPieceDrop={onDrop}
             boardWidth={560}

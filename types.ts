@@ -33,3 +33,11 @@ export interface MemoryCard {
   isFlipped: boolean;
   isMatched: boolean;
 }
+
+// Sudoku Types
+export type SudokuGrid = (number | null)[][];
+export interface SudokuCell {
+    value: number | null;
+    isGiven: boolean;
+    isInvalid: boolean;
+}

@@ -7,6 +7,8 @@ import Header from './components/Header';
 import ChessComponent from './components/Chess';
 import ConnectFour from './components/ConnectFour';
 import MemoryMatch from './components/MemoryMatch';
+import Sudoku from './components/Sudoku';
+import Hangman from './components/Hangman';
 
 const App: React.FC = () => {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -42,6 +44,10 @@ const App: React.FC = () => {
         return <ConnectFour onBack={handleGoBack} />;
       case 'memory-match':
         return <MemoryMatch onBack={handleGoBack} />;
+      case 'sudoku':
+        return <Sudoku onBack={handleGoBack} />;
+      case 'hangman':
+        return <Hangman onBack={handleGoBack} />;
       default:
         return null;
     }
