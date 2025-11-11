@@ -68,9 +68,6 @@ const ChessComponent: React.FC<ChessProps> = ({ onBack }) => {
 
   const handleLoadFen = () => {
     try {
-      // FIX: An expression of type 'void' cannot be tested for truthiness.
-      // Modern versions of chess.js have a `load` method that returns void and throws on failure.
-      // This logic now correctly handles that behavior.
       game.load(importedFen);
       setFen(game.fen());
       setImportedFen('');
